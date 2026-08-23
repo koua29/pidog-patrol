@@ -114,6 +114,9 @@ Tout est dans `config.json`.
 | `blocage.cycles_sans_echo` | 6 | Cycles sans écho avant de tourner par prudence |
 | `blocage.echecs_avant_abandon` | 6 | Manœuvres sans avancer avant qu'il renonce |
 | `obstacle.seuil_recul_cm` | 15 | Sous cette distance il recule au lieu de pivoter |
+| `confirmation.mesures` | 2 | Re-mesures avant de croire une lecture proche |
+| `anti_oscillation.delai_s` | 3 | Délai avant de pouvoir tourner dans l'autre sens |
+| `blocage.strategies` | 3 niveaux | Dégagement gradué, escalade si ça se répète |
 | `securite.inclinaison_max_deg` | 35 | Au-delà : chute ou robot soulevé |
 | `securite.batterie_min_v` | 6.8 | Sous ce seuil, la patrouille s'arrête |
 | `securite.duree_max_s` | 300 | Durée maximale d'une patrouille |
@@ -281,12 +284,22 @@ des deux côtés. **L'amplitude comptait autant que le principe du balayage.**
 **[seven-lynx/HoundMind](https://github.com/seven-lynx/HoundMind)** — 27★, 14 000 lignes,
 le projet le plus abouti sur PiDog. Son module d'évitement d'obstacles est arrivé
 indépendamment aux mêmes conclusions que ce projet — balayage de l'espace libre, recul,
-détection de blocage — ce qui rassure sur la direction. Il va plus loin sur trois points
-qui ne sont **pas** repris ici :
+détection de blocage — ce qui rassure sur la direction. Trois de ses mécanismes ont été
+**repris et adaptés** ici :
 
-- un **vote de confirmation** avant d'agir sur un balayage, au lieu d'une mesure unique ;
-- des **stratégies de dégagement graduées** plutôt qu'un seul comportement de recul ;
-- un **délai anti-oscillation** après un virage, pour éviter le zigzag.
+- **Vote de confirmation.** Le filtre par le minimum protège des échos trop *longs* — le
+  vrai risque en marchant — mais rend symétriquement vulnérable à un parasite trop
+  *court* : une seule lecture aberrante à 8 cm suffirait à faire reculer en pleine voie
+  libre. Toute mesure sous le seuil est donc re-mesurée. En cas de désaccord, on retient
+  la plus grande : un parasite court est bien plus fréquent qu'un obstacle qui
+  disparaît entre deux mesures.
+- **Stratégies de dégagement graduées.** `tourner` → `reculer_tourner` →
+  `reculer_demi_tour`, avec escalade quand les blocages se répètent dans une fenêtre de
+  15 s. Une réponse unique répétée à l'infini est exactement ce qui a fait pousser un
+  mur pendant sept cycles.
+- **Délai anti-oscillation.** Après un virage, interdit de tourner dans l'autre sens
+  pendant 3 s. Sans cela, un robot coincé entre deux obstacles part à gauche, voit un
+  mur, repart à droite, revoit l'autre mur, et zigzague sur place au lieu d'avancer.
 
 Si vous cherchez une pile complète et mature, allez-y directement. `pidog-patrol` vise
 autre chose : rester lisible, en français, testable sans matériel, et se brancher sur

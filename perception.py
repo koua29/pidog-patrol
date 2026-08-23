@@ -91,6 +91,38 @@ class Perception:
             "brut": brut,
         }
 
+    def distance_confirmee(self, seuil, n=None, tolerance=None):
+        """Distance frontale, avec vote de confirmation sous le seuil.
+
+        Le filtre par le MINIMUM (voir distance()) protege des echos trop LONGS,
+        qui sont le vrai risque en marchant. Mais il rend symetriquement vulnerable
+        a un parasite trop COURT : une seule lecture aberrante a 8 cm suffirait a
+        declencher un recul en pleine voie libre.
+
+        On re-mesure donc toute lecture inferieure au seuil. Si les mesures ne
+        s'accordent pas, on retient la PLUS GRANDE : un parasite court est bien
+        plus frequent qu'un obstacle qui disparait entre deux mesures.
+
+        Idee reprise de seven-lynx/HoundMind (vote de confirmation).
+        """
+        cfg = self.cfg.get("confirmation", {})
+        d = self.distance()
+        if not cfg.get("active", True) or d is None or d >= seuil:
+            return d
+        n = n or cfg.get("mesures", 2)
+        tolerance = tolerance or cfg.get("tolerance_cm", 12)
+        mesures = [d]
+        for _ in range(max(0, n - 1)):
+            time.sleep(0.05)
+            v = self.distance()
+            if v is not None:
+                mesures.append(v)
+        if len(mesures) < 2:
+            return d
+        if (max(mesures) - min(mesures)) <= tolerance:
+            return min(mesures)          # accord : l'obstacle est reel
+        return max(mesures)              # desaccord : on ne freine pas sur un parasite
+
     # -- IMU -----------------------------------------------------------------
     def inclinaison(self):
         """(pitch, roll) en degres. Sert a detecter une chute ou un soulevement.

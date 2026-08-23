@@ -22,6 +22,8 @@ def neuve(vision=None):
     p.cfg, p.vision = cfg, vision or VisionFactice()
     p.blocages, p.distances, p.sans_echo, p.raison_arret = 0, [], 0, None
     p.depuis_balayage, p.derniere_vue = 0, {}
+    p.dernier_virage = (None, 0.0)
+    p.historique_blocages, p.strategie = [], 0
     p.simulation = True
     return p
 
@@ -112,6 +114,32 @@ p = neuve()
 etroit = {"centre": 5.0, "gauche_libre": 10.0, "gauche_pres": 10.0,
           "droite_libre": 5.0, "droite_pres": 5.0, "brut": {45: 10.0, 0: 5.0, -45: 5.0}}
 verifie("meme scene vue a 45 deg seulement = recul", p.decider(5, etroit)[0], "reculer")
+
+print("\n-- anti-oscillation et strategies graduees --")
+
+import time as _t
+
+p = neuve(); p.dernier_virage = ("gauche", _t.time())
+verifie("vient de tourner a gauche : ne repart pas a droite",
+        p.decider(25, {"gauche_libre":30.0,"gauche_pres":30.0,"centre":25.0,
+                       "droite_libre":180.0,"droite_pres":180.0})[0], "gauche")
+
+p = neuve(); p.dernier_virage = ("gauche", _t.time() - 10)
+verifie("virage ancien (10 s) : le delai ne s'applique plus",
+        p.decider(25, {"gauche_libre":30.0,"gauche_pres":30.0,"centre":25.0,
+                       "droite_libre":180.0,"droite_pres":180.0})[0], "droite")
+
+p = neuve(); p.dernier_virage = ("droite", _t.time())
+verifie("frottement a droite mais on vient de tourner a droite : on continue",
+        p.decider(150, {"gauche_libre":150.0,"gauche_pres":150.0,"centre":150.0,
+                        "droite_libre":150.0,"droite_pres":12.0})[0], "avancer")
+
+bloque = {"gauche_libre":8.0,"gauche_pres":8.0,"centre":5.0,
+          "droite_libre":7.0,"droite_pres":7.0}
+p = neuve()
+verifie("1er blocage : strategie « tourner » -> recul", p.decider(5, bloque)[0], "reculer")
+p = neuve(); p.historique_blocages = [_t.time()] * 5
+verifie("blocages repetes : escalade vers le demi-tour", p.decider(5, bloque)[0], "demi_tour")
 
 print(f"\n=> {ok}/{total} tests passes")
 sys.exit(0 if ok == total else 1)

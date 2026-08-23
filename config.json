@@ -47,7 +47,15 @@
     "cycles_sans_echo": 6,
     "_sans_echo_aide": "Aucun echo signifie le plus souvent 'rien en vue', donc voie degagee. Mais un mur absorbant ou un capteur en panne donnent le meme silence : apres ce nombre de cycles sans le moindre echo, le robot tourne par prudence.",
     "echecs_avant_abandon": 6,
-    "_abandon_aide": "Apres ce nombre de cycles consecutifs SANS avancer une seule fois, le robot renonce et s'assoit. Sans cela il peut pousser un mur indefiniment : constate en usage reel, 7 cycles a pivoter le nez contre une porte."
+    "_abandon_aide": "Apres ce nombre de cycles consecutifs SANS avancer une seule fois, le robot renonce et s'assoit. Sans cela il peut pousser un mur indefiniment : constate en usage reel, 7 cycles a pivoter le nez contre une porte.",
+    "strategies": [
+      "tourner",
+      "reculer_tourner",
+      "reculer_demi_tour"
+    ],
+    "_strategies_aide": "Degagement gradue : on passe a la strategie suivante quand les blocages se repetent dans la fenetre ci-dessous. Une seule reponse repetee a l'infini est ce qui a fait pousser un mur pendant 7 cycles. Idee reprise de seven-lynx/HoundMind.",
+    "fenetre_repetition_s": 15.0,
+    "repetitions_avant_escalade": 2
   },
   "vision": {
     "active": true,
@@ -78,5 +86,16 @@
     "dossier": "~/pidog-patrol-photos",
     "garder": 50,
     "_aide": "Conserve les dernieres photos prises pendant les patrouilles, pour comprendre apres coup ce que le robot a vu."
+  },
+  "confirmation": {
+    "_aide": "Le filtre par le MINIMUM protege des echos trop LONGS (le vrai risque en marchant) mais rend vulnerable a un parasite trop COURT, qui ferait freiner pour rien. Avant toute manoeuvre, une lecture proche est donc re-mesuree et doit se confirmer. Idee reprise de seven-lynx/HoundMind (vote de confirmation).",
+    "active": true,
+    "mesures": 2,
+    "tolerance_cm": 12
+  },
+  "anti_oscillation": {
+    "_aide": "Apres un virage, interdit de tourner dans l'AUTRE sens pendant ce delai : sans cela le robot zigzague entre deux obstacles au lieu d'avancer. Idee reprise de seven-lynx/HoundMind (turn cooldown).",
+    "active": true,
+    "delai_s": 3.0
   }
 }

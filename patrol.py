@@ -150,8 +150,40 @@ class Patrouille:
         self.depuis_balayage = 99      # force un balayage au premier cycle
         self.derniere_vue = {}
         self.raison_arret = None
+        self.dernier_virage = (None, 0.0)   # (cote, horodatage) — anti-oscillation
+        self.historique_blocages = []       # horodatages, pour l'escalade
+        self.strategie = 0
 
     # -- securite ------------------------------------------------------------
+    def _oscille(self, cote):
+        """Interdit de tourner dans l'AUTRE sens juste apres un virage.
+
+        Sans ce delai, le robot coince entre deux obstacles part a gauche, voit
+        un mur, repart a droite, revoit l'autre mur, et zigzague sur place au
+        lieu d'avancer. Idee reprise de seven-lynx/HoundMind (turn cooldown).
+        """
+        a = self.cfg.get("anti_oscillation", {})
+        if not a.get("active", True):
+            return False
+        precedent, quand = self.dernier_virage
+        if precedent is None or precedent == cote:
+            return False
+        return (time.time() - quand) < a.get("delai_s", 3.0)
+
+    def _strategie_courante(self):
+        """Escalade quand les blocages se repetent : une reponse unique repetee
+        a l'infini est ce qui a fait pousser un mur pendant 7 cycles."""
+        b = self.cfg["blocage"]
+        strategies = b.get("strategies", ["tourner", "reculer_tourner", "reculer_demi_tour"])
+        fenetre = b.get("fenetre_repetition_s", 15.0)
+        seuil = b.get("repetitions_avant_escalade", 2)
+        maintenant = time.time()
+        self.historique_blocages = [t for t in self.historique_blocages
+                                    if maintenant - t <= fenetre]
+        niveau = min(len(self.historique_blocages) // max(1, seuil), len(strategies) - 1)
+        self.strategie = niveau
+        return strategies[niveau]
+
     def abandonne(self):
         """Renonce apres trop de cycles sans jamais avancer.
 
@@ -254,13 +286,22 @@ class Patrouille:
             cotes = [self._libre(vue, c) for c in ("gauche", "droite")]
             reels = [v for v in cotes if v is not None]
             colle = len(reels) == 2 and max(reels) < seuil_recul
-        if colle and echappatoire is None:
-            return "reculer", f"colle a l'obstacle ({dist:.0f} cm), aucune issue : je recule"
         if colle:
+            strategie = self._strategie_courante()
+            if echappatoire is None or strategie != "tourner":
+                if strategie == "reculer_demi_tour":
+                    return "demi_tour", (f"colle a {dist:.0f} cm — strategie "
+                                         f"« {strategie} » (blocages repetes)")
+                return "reculer", (f"colle a {dist:.0f} cm — strategie « {strategie} »"
+                                   + ("" if echappatoire is None else f", {echappatoire} degage"))
             return echappatoire, f"colle a {dist:.0f} cm mais {echappatoire} degage"
 
         if dist < o["seuil_cm"]:
             cote = self._cote_le_plus_libre(vue) if vue else "gauche"
+            if self._oscille(cote):
+                autre = "droite" if cote == "gauche" else "gauche"
+                return autre, (f"obstacle a {dist:.0f} cm — je garde le cap {autre} "
+                               f"(anti-oscillation)")
             detail = (f" (g={self._libre(vue,'gauche')}, d={self._libre(vue,'droite')})"
                       if vue else "")
             return cote, f"obstacle a {dist:.0f} cm{detail}"
@@ -271,6 +312,9 @@ class Patrouille:
         for cote, oppose in (("gauche", "droite"), ("droite", "gauche")):
             p = self._pres(vue, cote)
             if p is not None and p < marge:
+                if self._oscille(oppose):
+                    return "avancer", (f"{cote} a {p:.0f} cm mais je viens de tourner "
+                                       f"(anti-oscillation) : je continue")
                 return oppose, f"{cote} a {p:.0f} cm (< {marge}), je m'ecarte"
 
         if self.coince():
@@ -296,6 +340,7 @@ class Patrouille:
 
         if action == "reculer":
             self.blocages += 1
+            self.historique_blocages.append(time.time())
             d.rgb_strip.set_mode('bark', color='red', bps=3)
             d.speak('single_bark_1')
             d.do_action('backward', step_count=o.get("recul_pas", 3),
@@ -303,6 +348,7 @@ class Patrouille:
             d.wait_all_done()
             # apres avoir recule, on pivote franchement vers le cote le plus degage
             cote = self._cote_le_plus_libre(self.derniere_vue or {})
+            self.dernier_virage = (cote, time.time())
             d.do_action('turn_right' if cote == "droite" else 'turn_left',
                         step_count=o["rotation_pas_max"],
                         speed=o.get("vitesse_rotation", 98))
@@ -315,6 +361,9 @@ class Patrouille:
                         speed=o.get("vitesse_marche", 98))
         else:
             self.blocages += 1
+            self.historique_blocages.append(time.time())
+            self.dernier_virage = (action if action in ("gauche", "droite") else None,
+                                   time.time())
             pas = min(o["rotation_pas"] + self.blocages - 1, o["rotation_pas_max"])
             d.rgb_strip.set_mode('bark', color='red', bps=2)
             d.speak('single_bark_1')
@@ -369,8 +418,8 @@ class Patrouille:
                                      f"sans pouvoir avancer")
                 break
             cycle += 1
-            dist = self.p.distance()
             o = cfg["obstacle"]
+            dist = self.p.distance_confirmee(o["seuil_cm"])
             besoin = (dist is not None and dist < o["seuil_cm"] * 1.6) or \
                      self.depuis_balayage >= o.get("cycles_entre_balayages", 3)
             vue = None
