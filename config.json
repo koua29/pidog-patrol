@@ -32,14 +32,19 @@
     "marge_laterale_cm": 30,
     "_marge_laterale_aide": "Si un cote est plus proche que cette marge, le robot s'ecarte MEME si la voie devant est libre. Sans cela il longe les portes et les murs en frottant : l'ultrason frontal ne voit pas ce qui le rase.",
     "cycles_entre_balayages": 3,
-    "_balayage_aide": "Un balayage coute ~2 s (3 orientations de tete). On ne le fait donc pas a chaque cycle, sauf en cas d'obstacle ou il est immediat."
+    "_balayage_aide": "Un balayage coute ~2 s (3 orientations de tete). On ne le fait donc pas a chaque cycle, sauf en cas d'obstacle ou il est immediat.",
+    "seuil_recul_cm": 15,
+    "_recul_aide": "Sous cette distance le robot est COLLE a l'obstacle : tourner sur place ne le degage pas, il pivote le nez dans le mur. Il doit RECULER d'abord. Constate en usage reel : 7 cycles a tourner avec 4 cm devant, gauche et droite.",
+    "recul_pas": 3
   },
   "blocage": {
     "tolerance_cm": 5,
     "cycles_avant_demi_tour": 4,
     "_aide": "Si la distance ne change plus malgre les rotations, le robot est coince : demi-tour franc.",
     "cycles_sans_echo": 6,
-    "_sans_echo_aide": "Aucun echo signifie le plus souvent 'rien en vue', donc voie degagee. Mais un mur absorbant ou un capteur en panne donnent le meme silence : apres ce nombre de cycles sans le moindre echo, le robot tourne par prudence."
+    "_sans_echo_aide": "Aucun echo signifie le plus souvent 'rien en vue', donc voie degagee. Mais un mur absorbant ou un capteur en panne donnent le meme silence : apres ce nombre de cycles sans le moindre echo, le robot tourne par prudence.",
+    "echecs_avant_abandon": 6,
+    "_abandon_aide": "Apres ce nombre de cycles consecutifs SANS avancer une seule fois, le robot renonce et s'assoit. Sans cela il peut pousser un mur indefiniment : constate en usage reel, 7 cycles a pivoter le nez contre une porte."
   },
   "vision": {
     "active": true,
@@ -61,7 +66,9 @@
     "obstacle": null,
     "fin": "Patrouille terminee.",
     "arret_urgence": "Arret d'urgence.",
-    "batterie_basse": "Batterie trop faible pour patrouiller."
+    "batterie_basse": "Batterie trop faible pour patrouiller.",
+    "coince": "Je suis coince, je ne peux plus avancer.",
+    "coince_depart": "Je suis contre un obstacle. Degagez-moi avant de me faire patrouiller."
   },
   "journal_photos": {
     "actif": true,

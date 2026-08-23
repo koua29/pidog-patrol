@@ -152,6 +152,16 @@ class Patrouille:
         self.raison_arret = None
 
     # -- securite ------------------------------------------------------------
+    def abandonne(self):
+        """Renonce apres trop de cycles sans jamais avancer.
+
+        Sans ce garde-fou, un robot coince pousse le mur indefiniment — c'est
+        arrive : 7 cycles a pivoter le nez contre une porte, jusqu'a intervention
+        humaine. Mieux vaut s'asseoir et le dire.
+        """
+        limite = self.cfg["blocage"].get("echecs_avant_abandon", 6)
+        return self.blocages >= limite
+
     def danger(self, debut):
         s = self.cfg["securite"]
         if self.p.touche():
@@ -223,6 +233,28 @@ class Patrouille:
             return "avancer", "aucun echo (voie probablement degagee)"
         self.sans_echo = 0
 
+        # COLLE a l'obstacle : tourner sur place ne degage RIEN, le robot pivote
+        # le nez dans le mur. Constate en usage reel — 7 cycles a tourner avec
+        # 4 cm devant, a gauche ET a droite. La seule sortie est de reculer.
+        seuil_recul = o.get("seuil_recul_cm", 15)
+        # Un cote est une vraie echappatoire s'il offre au moins le degagement
+        # normal (seuil_cm). Un cote a 20 cm n'en est pas une : le robot pivoterait
+        # dedans. `None` = aucun echo = espace libre, donc echappatoire valable.
+        echappatoire = None
+        if vue:
+            for cote in ("gauche", "droite"):
+                if cote in vue and (vue[cote] is None or vue[cote] >= o["seuil_cm"]):
+                    echappatoire = cote
+                    break
+        colle = dist < seuil_recul
+        if vue and not colle:
+            cotes = [v for v in (vue.get("gauche"), vue.get("droite")) if v is not None]
+            colle = bool(cotes) and len(cotes) == 2 and max(cotes) < seuil_recul
+        if colle and echappatoire is None:
+            return "reculer", f"colle a l'obstacle ({dist:.0f} cm), aucune issue : je recule"
+        if colle:
+            return echappatoire, f"colle a {dist:.0f} cm mais {echappatoire} degage"
+
         if dist < o["seuil_cm"]:
             cote = self._cote_le_plus_libre(vue) if vue else "gauche"
             detail = f" (gauche={vue.get('gauche')}, droite={vue.get('droite')})" if vue else ""
@@ -258,6 +290,19 @@ class Patrouille:
             # valide la logique de decision sans bouger : aucun risque de chute
             time.sleep(0.8)
             return
+
+        if action == "reculer":
+            self.blocages += 1
+            d.rgb_strip.set_mode('bark', color='red', bps=3)
+            d.speak('single_bark_1')
+            d.do_action('backward', step_count=o.get("recul_pas", 3),
+                        speed=o.get("vitesse_marche", 98))
+            d.wait_all_done()
+            # apres avoir recule, on pivote franchement pour changer de cap
+            d.do_action('turn_left', step_count=o["rotation_pas_max"],
+                        speed=o.get("vitesse_rotation", 98))
+            d.wait_all_done()
+            return
         if action == "avancer":
             self.blocages = 0
             d.rgb_strip.set_mode('breath', color='green', bps=1)
@@ -291,6 +336,15 @@ class Patrouille:
             d.wait_all_done()
             d.head_move([[0, 0, 0]], speed=80)   # tete droite : faisceau vers l'avant
             d.wait_all_done()
+            vue0 = self.p.balayage()
+            libre = [v for v in vue0.values() if v is None or v >= cfg["obstacle"]["seuil_recul_cm"]]
+            journal(f"   degagement au depart : {vue0}")
+            if not libre:
+                parler(cfg["voix"].get("coince_depart",
+                                       "Je suis contre un obstacle, degagez-moi avant."), cfg)
+                journal("!! depart refuse : le robot est colle a un obstacle dans toutes les directions")
+                d.do_action('sit', speed=50); d.wait_all_done()
+                return 4
             parler(cfg["voix"]["depart"], cfg)
         else:
             journal("== SIMULATION : la logique tourne, les servos ne bougent pas ==")
@@ -302,6 +356,10 @@ class Patrouille:
                 self.raison_arret = "signal d'arret"
                 break
             if self.danger(debut):
+                break
+            if self.abandonne():
+                self.raison_arret = (f"coince : {self.blocages} manoeuvres "
+                                     f"sans pouvoir avancer")
                 break
             cycle += 1
             dist = self.p.distance()
@@ -320,7 +378,7 @@ class Patrouille:
             if action == "avancer" and dist is not None:
                 self.distances.append(dist)   # seuls les cycles d'avance comptent
             else:
-                self.distances.clear()        # une rotation remet le compteur a zero
+                self.distances.clear()        # rotation ou recul : compteur a zero
             vue_txt = ""
             if vue:
                 vue_txt = ("  [G " + " C ".join(
@@ -331,6 +389,8 @@ class Patrouille:
             journal(f"[{cycle:03d}] {dist if dist is None else f'{dist:.0f} cm':>7} "
                     f"-> {action:<10} ({raison}){vue_txt}")
             self.agir(action)
+            if action in ("reculer", "demi_tour"):
+                self.depuis_balayage = 99     # rebalayer immediatement apres
             if cycle % 10 == 0 and not self.batterie_suffisante():
                 break
 
@@ -338,6 +398,8 @@ class Patrouille:
             d.legs_stop()
         d.rgb_strip.set_mode('breath', color='white', bps=0.5)
         urgence = self.raison_arret in ("tactile",) or "inclinaison" in (self.raison_arret or "")
+        if self.raison_arret and self.raison_arret.startswith("coince"):
+            parler(cfg["voix"].get("coince", "Je suis coince, je ne peux plus avancer."), cfg)
         journal(f"== arret : {self.raison_arret} — {cycle} cycles en "
                 f"{time.time()-debut:.0f} s")
         if not self.simulation:

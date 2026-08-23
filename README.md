@@ -112,6 +112,8 @@ Tout est dans `config.json`.
 | `obstacle.rotation_pas` → `_max` | 3 → 7 | La rotation s'allonge s'il insiste |
 | `blocage.cycles_avant_demi_tour` | 4 | Cycles d'avance sans progrès = coincé |
 | `blocage.cycles_sans_echo` | 6 | Cycles sans écho avant de tourner par prudence |
+| `blocage.echecs_avant_abandon` | 6 | Manœuvres sans avancer avant qu'il renonce |
+| `obstacle.seuil_recul_cm` | 15 | Sous cette distance il recule au lieu de pivoter |
 | `securite.inclinaison_max_deg` | 35 | Au-delà : chute ou robot soulevé |
 | `securite.batterie_min_v` | 6.8 | Sous ce seuil, la patrouille s'arrête |
 | `securite.duree_max_s` | 300 | Durée maximale d'une patrouille |
@@ -142,6 +144,31 @@ centre et à droite : 3 mesures, **1 seconde**. Deux règles en découlent :
   devant est dégagée** ;
 - face à un obstacle, il tourne vers le côté **le plus libre**, au lieu de toujours
   partir à gauche.
+
+## Reculer, et savoir renoncer
+
+Tourner sur place ne dégage **rien** quand le robot est déjà collé à un obstacle : il
+pivote le nez dans le mur. Relevé en usage réel, sept cycles d'affilée :
+
+```
+[001] gauche=5,5  centre=5,5  droite=3,7  -> gauche
+[002] gauche=5,3  centre=4,4  droite=3,9  -> gauche
+[003] gauche=4,7  centre=4,2  droite=4,1  -> gauche
+...
+```
+
+Quatre centimètres dans les trois directions, et une seule réponse possible dans mon
+code : tourner. Il a fallu une intervention humaine pour l'arrêter.
+
+Trois comportements ont été ajoutés :
+
+1. **Reculer** sous `seuil_recul_cm` (15 cm) — mais seulement si aucun côté n'offre de
+   vraie échappatoire. Un côté dégagé à 150 cm ? Il pivote, c'est plus rapide. Un côté à
+   20 cm ? Ce n'en est pas une, il pivoterait dedans.
+2. **Renoncer** après `echecs_avant_abandon` manœuvres sans jamais avancer : il s'assoit
+   et le dit — *« Je suis coincé, je ne peux plus avancer. »*
+3. **Vérifier avant de partir** : un balayage précède le départ. S'il est collé dans
+   toutes les directions, il refuse et demande qu'on le dégage.
 
 ## La vitesse : 98, jamais 90
 

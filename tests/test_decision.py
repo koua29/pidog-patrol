@@ -79,5 +79,23 @@ p = neuve()
 verifie("cote pile a la marge (30 cm) = on n'ecarte pas",
         p.decider(150, {"gauche": 30.0, "centre": 150.0, "droite": 150.0})[0], "avancer")
 
+print("\n-- recul (le cas du nez dans le mur) --")
+
+p = neuve()
+verifie("colle au mur devant (4 cm)",
+        p.decider(4, {"gauche": 5.5, "centre": 4.0, "droite": 3.7})[0], "reculer")
+p = neuve()
+verifie("coince : tout est sous 15 cm",
+        p.decider(12, {"gauche": 10.0, "centre": 12.0, "droite": 8.0})[0], "reculer")
+p = neuve()
+verifie("proche devant mais un cote degage = on tourne",
+        p.decider(12, {"gauche": 150.0, "centre": 12.0, "droite": 9.0})[0], "gauche")
+p = neuve()
+verifie("obstacle a 25 cm = on tourne, pas de recul",
+        p.decider(25, {"gauche": 40.0, "centre": 25.0, "droite": 180.0})[0], "droite")
+p = neuve()
+verifie("sans balayage, colle devant = recul quand meme",
+        p.decider(6, {})[0], "reculer")
+
 print(f"\n=> {ok}/{total} tests passes")
 sys.exit(0 if ok == total else 1)
