@@ -1,0 +1,60 @@
+{
+  "_lisezmoi": [
+    "Configuration de pidog-patrol. Tout se regle ici, aucun code a modifier.",
+    "Verifier apres modification : python3 patrol.py --verifier"
+  ],
+  "securite": {
+    "_aide": "Ces reglages priment sur tout le reste. Ne les desactivez pas a la legere.",
+    "arret_tactile": true,
+    "inclinaison_max_deg": 35,
+    "_inclinaison_aide": "Au-dela, le robot est tombe ou on l'a souleve : arret immediat.",
+    "duree_max_s": 300,
+    "batterie_min_v": 6.8,
+    "_batterie_aide": "En dessous, la patrouille s'arrete : les servos font chuter la tension et un pack trop bas se degrade."
+  },
+  "obstacle": {
+    "seuil_cm": 40,
+    "mesures_par_controle": 5,
+    "_mesures_aide": "Le capteur est sur la tete : la marche fait tanguer le corps et produit des echos parasites, TOUJOURS plus longs que la vraie distance. On garde donc le MINIMUM, jamais la moyenne. Mesure : 68 cm +/-1 a l'arret, 60..155 en marchant.",
+    "portee_max_cm": 300,
+    "pas_par_cycle": 2,
+    "rotation_pas": 3,
+    "rotation_pas_max": 7,
+    "_rotation_aide": "La rotation s'allonge a chaque blocage consecutif : evite de rester coince dans un angle."
+  },
+  "blocage": {
+    "tolerance_cm": 5,
+    "cycles_avant_demi_tour": 4,
+    "_aide": "Si la distance ne change plus malgre les rotations, le robot est coince : demi-tour franc.",
+    "cycles_sans_echo": 6,
+    "_sans_echo_aide": "Aucun echo signifie le plus souvent 'rien en vue', donc voie degagee. Mais un mur absorbant ou un capteur en panne donnent le meme silence : apres ce nombre de cycles sans le moindre echo, le robot tourne par prudence."
+  },
+  "vision": {
+    "active": true,
+    "_active_aide": "Mettre a false pour patrouiller aux seuls capteurs. La vision n'est JAMAIS bloquante : elle tourne dans un thread et la navigation continue sans elle.",
+    "hote": "http://cerveau.local:11434",
+    "modele": "qwen3-vl:8b",
+    "intervalle_s": 45,
+    "_intervalle_aide": "qwen3-vl met ~26 s par image sur un Mac M2 Pro. Inutile de descendre sous 40 s.",
+    "timeout_s": 90,
+    "largeur_px": 640,
+    "annoncer_scene": true,
+    "_annoncer_aide": "Le robot dit a voix haute ce qu'il voit. Mettre a false pour une patrouille discrete.",
+    "influence_navigation": true,
+    "_influence_aide": "Si la vision juge la voie non libre alors que l'ultrason ne voit rien, le robot tourne quand meme. La vision ne peut que RENDRE PRUDENT, jamais autoriser un passage que l'ultrason refuse."
+  },
+  "voix": {
+    "langue": "fr-FR",
+    "depart": "Je pars en patrouille.",
+    "obstacle": null,
+    "fin": "Patrouille terminee.",
+    "arret_urgence": "Arret d'urgence.",
+    "batterie_basse": "Batterie trop faible pour patrouiller."
+  },
+  "journal_photos": {
+    "actif": true,
+    "dossier": "~/pidog-patrol-photos",
+    "garder": 50,
+    "_aide": "Conserve les dernieres photos prises pendant les patrouilles, pour comprendre apres coup ce que le robot a vu."
+  }
+}

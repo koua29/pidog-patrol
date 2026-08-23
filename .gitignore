@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+venv/
+venv-stt/
+*.log
+*.wav
+.DS_Store
+.venv/
