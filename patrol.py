@@ -147,6 +147,8 @@ class Patrouille:
         self.blocages = 0
         self.distances = []          # distances des cycles ou l'on a AVANCE
         self.sans_echo = 0
+        self.depuis_balayage = 99      # force un balayage au premier cycle
+        self.derniere_vue = {}
         self.raison_arret = None
 
     # -- securite ------------------------------------------------------------
@@ -189,16 +191,32 @@ class Patrouille:
         recentes = self.distances[-n:]
         return (max(recentes) - min(recentes)) < b["tolerance_cm"]
 
-    def decider(self, dist):
-        """Retourne ('avancer'|'gauche'|'droite'|'demi_tour', raison)."""
+    def _cote_le_plus_libre(self, vue):
+        """Retourne 'gauche' ou 'droite' selon le cote le plus degage."""
+        g = vue.get("gauche")
+        dr = vue.get("droite")
+        if g is None and dr is None:
+            return "gauche"                      # aucun echo des deux cotes
+        if g is None:
+            return "gauche"                      # rien a gauche = espace libre
+        if dr is None:
+            return "droite"
+        return "gauche" if g >= dr else "droite"
+
+    def decider(self, dist, vue=None):
+        """Retourne ('avancer'|'gauche'|'droite'|'demi_tour', raison).
+
+        `vue` est le resultat d'un balayage lateral, quand il y en a eu un.
+        """
         o = self.cfg["obstacle"]
         b = self.cfg["blocage"]
+        vue = vue or {}
 
         if dist is None:
-            # Aucun echo. Le plus souvent : rien dans la portee du capteur, donc
-            # voie DEGAGEE — surtout pas un demi-tour. Mais un mur absorbant ou un
-            # capteur qui lache donnent le meme silence : au bout de plusieurs
-            # cycles sans le moindre echo, on prefere tourner par prudence.
+            # Aucun echo : le plus souvent rien dans la portee, donc voie DEGAGEE
+            # — surtout pas un demi-tour. Mais un mur absorbant ou un capteur qui
+            # lache donnent le meme silence : au bout de plusieurs cycles muets,
+            # on tourne par prudence.
             self.sans_echo += 1
             if self.sans_echo >= b.get("cycles_sans_echo", 6):
                 return "gauche", f"aucun echo depuis {self.sans_echo} cycles"
@@ -206,7 +224,18 @@ class Patrouille:
         self.sans_echo = 0
 
         if dist < o["seuil_cm"]:
-            return "gauche", f"obstacle a {dist:.0f} cm"
+            cote = self._cote_le_plus_libre(vue) if vue else "gauche"
+            detail = f" (gauche={vue.get('gauche')}, droite={vue.get('droite')})" if vue else ""
+            return cote, f"obstacle a {dist:.0f} cm{detail}"
+
+        # FROTTEMENT LATERAL : la voie est libre devant, mais quelque chose rase
+        # un flanc — une porte, un mur, un pied de meuble. L'ultrason frontal ne
+        # le verra jamais ; c'est le balayage qui l'attrape.
+        marge = o.get("marge_laterale_cm", 30)
+        for cote, oppose in (("gauche", "droite"), ("droite", "gauche")):
+            d_cote = vue.get(cote)
+            if d_cote is not None and d_cote < marge:
+                return oppose, f"{cote} a {d_cote:.0f} cm (< {marge}), je m'ecarte"
 
         if self.coince():
             return "demi_tour", "j'avance sans me rapprocher : coince"
@@ -232,7 +261,8 @@ class Patrouille:
         if action == "avancer":
             self.blocages = 0
             d.rgb_strip.set_mode('breath', color='green', bps=1)
-            d.do_action('forward', step_count=o["pas_par_cycle"], speed=90)
+            d.do_action('forward', step_count=o["pas_par_cycle"],
+                        speed=o.get("vitesse_marche", 98))
         else:
             self.blocages += 1
             pas = min(o["rotation_pas"] + self.blocages - 1, o["rotation_pas_max"])
@@ -241,7 +271,7 @@ class Patrouille:
             if action == "demi_tour":
                 pas = o["rotation_pas_max"]
             sens = 'turn_right' if action == "droite" else 'turn_left'
-            d.do_action(sens, step_count=pas, speed=88)
+            d.do_action(sens, step_count=pas, speed=o.get("vitesse_rotation", 98))
         d.wait_all_done()
 
     # -- boucle --------------------------------------------------------------
@@ -275,13 +305,31 @@ class Patrouille:
                 break
             cycle += 1
             dist = self.p.distance()
-            action, raison = self.decider(dist)
+            o = cfg["obstacle"]
+            besoin = (dist is not None and dist < o["seuil_cm"] * 1.6) or \
+                     self.depuis_balayage >= o.get("cycles_entre_balayages", 3)
+            vue = None
+            if besoin:
+                vue = self.p.balayage()
+                self.derniere_vue = vue
+                self.depuis_balayage = 0
+                dist = vue.get("centre", dist)      # la mesure centrale est plus fraiche
+            else:
+                self.depuis_balayage += 1
+            action, raison = self.decider(dist, vue)
             if action == "avancer" and dist is not None:
                 self.distances.append(dist)   # seuls les cycles d'avance comptent
             else:
                 self.distances.clear()        # une rotation remet le compteur a zero
+            vue_txt = ""
+            if vue:
+                vue_txt = ("  [G " + " C ".join(
+                    f"{v:.0f}" if v is not None else "--"
+                    for v in (vue.get("gauche"), vue.get("centre"))) +
+                    f" D {vue.get('droite'):.0f}]" if vue.get("droite") is not None
+                    else "  [balayage]")
             journal(f"[{cycle:03d}] {dist if dist is None else f'{dist:.0f} cm':>7} "
-                    f"-> {action:<10} ({raison})")
+                    f"-> {action:<10} ({raison}){vue_txt}")
             self.agir(action)
             if cycle % 10 == 0 and not self.batterie_suffisante():
                 break

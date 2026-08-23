@@ -21,6 +21,7 @@ def neuve(vision=None):
     p = patrol.Patrouille.__new__(patrol.Patrouille)
     p.cfg, p.vision = cfg, vision or VisionFactice()
     p.blocages, p.distances, p.sans_echo, p.raison_arret = 0, [], 0, None
+    p.depuis_balayage, p.derniere_vue = 0, {}
     p.simulation = True
     return p
 
@@ -53,6 +54,30 @@ p = neuve(VisionFactice({"voie_libre": False, "conseil": "droite", "scene": "cab
 verifie("vision dit non alors que l'ultrason dit oui", p.decider(160)[0], "droite")
 p = neuve(VisionFactice({"voie_libre": True, "conseil": "avancer", "scene": "couloir"}))
 verifie("vision dit oui mais obstacle a 20 cm", p.decider(20)[0], "gauche")
+
+print("\n-- balayage lateral (le cas de la porte qu'on longe en frottant) --")
+
+p = neuve()
+verifie("voie libre devant mais mur a 15 cm a gauche",
+        p.decider(150, {"gauche": 15.0, "centre": 150.0, "droite": 200.0})[0], "droite")
+p = neuve()
+verifie("voie libre devant mais mur a 12 cm a droite",
+        p.decider(150, {"gauche": 200.0, "centre": 150.0, "droite": 12.0})[0], "gauche")
+p = neuve()
+verifie("les deux cotes degages = on avance",
+        p.decider(150, {"gauche": 120.0, "centre": 150.0, "droite": 130.0})[0], "avancer")
+p = neuve()
+verifie("obstacle devant : on tourne vers le cote le PLUS libre",
+        p.decider(25, {"gauche": 40.0, "centre": 25.0, "droite": 180.0})[0], "droite")
+p = neuve()
+verifie("obstacle devant : cote le plus libre a gauche",
+        p.decider(25, {"gauche": 190.0, "centre": 25.0, "droite": 35.0})[0], "gauche")
+p = neuve()
+verifie("obstacle devant, aucun echo a droite = espace libre",
+        p.decider(25, {"gauche": 60.0, "centre": 25.0, "droite": None})[0], "droite")
+p = neuve()
+verifie("cote pile a la marge (30 cm) = on n'ecarte pas",
+        p.decider(150, {"gauche": 30.0, "centre": 150.0, "droite": 150.0})[0], "avancer")
 
 print(f"\n=> {ok}/{total} tests passes")
 sys.exit(0 if ok == total else 1)

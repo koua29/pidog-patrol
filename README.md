@@ -103,6 +103,10 @@ Tout est dans `config.json`.
 | Réglage | Défaut | Rôle |
 |---|---|---|
 | `obstacle.seuil_cm` | 40 | Distance à laquelle il tourne |
+| `obstacle.vitesse_marche` | 98 | **Ne pas baisser** — voir plus bas |
+| `obstacle.marge_laterale_cm` | 30 | Un côté plus proche → il s'écarte |
+| `obstacle.balayage_angles_deg` | [45, 0, -45] | Orientations de tête du balayage |
+| `obstacle.cycles_entre_balayages` | 3 | Un balayage coûte ~1 s |
 | `obstacle.mesures_par_controle` | 5 | Mesures dont on prend le **minimum** |
 | `obstacle.pas_par_cycle` | 2 | Pas entre deux contrôles |
 | `obstacle.rotation_pas` → `_max` | 3 → 7 | La rotation s'allonge s'il insiste |
@@ -117,6 +121,40 @@ Tout est dans `config.json`.
 | `vision.annoncer_scene` | true | Il dit à voix haute ce qu'il voit |
 
 ---
+
+## Le balayage latéral, sans lequel il frotte les murs
+
+L'ultrason est un **cône étroit vers l'avant**. Un obstacle qui rase un flanc — une porte
+entrouverte, un pied de meuble, un mur qu'on longe — lui est totalement invisible. Le
+robot lit « voie libre » et continue en frottant.
+
+Mesure réelle, robot immobile :
+
+```
+gauche = 66 cm     centre = 57 cm     droite = 25 cm
+```
+
+Le faisceau frontal annonçait 57 cm de dégagement. Il y avait un obstacle **à 25 cm sur
+la droite**. À chaque contrôle rapproché, le robot oriente donc la tête à gauche, au
+centre et à droite : 3 mesures, **1 seconde**. Deux règles en découlent :
+
+- un côté sous `marge_laterale_cm` (30 par défaut) → il s'écarte, **même si la voie
+  devant est dégagée** ;
+- face à un obstacle, il tourne vers le côté **le plus libre**, au lieu de toujours
+  partir à gauche.
+
+## La vitesse : 98, jamais 90
+
+```
+vitesse 90  ->  6,5 s par pas
+vitesse 98  ->  1,6 s par pas
+```
+
+**Quatre fois plus lent pour 8 points de moins.** Mesuré deux fois, puis refait en ordre
+inverse pour écarter la fatigue de batterie : l'écart est reproductible et vient bien du
+paramètre. La formule de la bibliothèque
+(`delay = (100-speed)/100 × 0,045 + 0,005`) ne prédit pourtant qu'un facteur 1,6 — l'écart
+réel est bien plus brutal que la théorie. Ne descendez pas sous 95 sans raison.
 
 ## Pourquoi le minimum, et pas la moyenne
 

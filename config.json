@@ -20,7 +20,19 @@
     "pas_par_cycle": 2,
     "rotation_pas": 3,
     "rotation_pas_max": 7,
-    "_rotation_aide": "La rotation s'allonge a chaque blocage consecutif : evite de rester coince dans un angle."
+    "_rotation_aide": "La rotation s'allonge a chaque blocage consecutif : evite de rester coince dans un angle.",
+    "vitesse_marche": 98,
+    "vitesse_rotation": 98,
+    "_vitesse_aide": "MESURE le 23/08/2026 : vitesse 98 = 1,6 s/pas, vitesse 90 = 6,5 s/pas. Quatre fois plus lent pour 8 points de moins, verifie en ordre inverse pour exclure la fatigue de batterie. Ne descendez pas sous 95 sans raison.",
+    "balayage_angles_deg": [
+      45,
+      0,
+      -45
+    ],
+    "marge_laterale_cm": 30,
+    "_marge_laterale_aide": "Si un cote est plus proche que cette marge, le robot s'ecarte MEME si la voie devant est libre. Sans cela il longe les portes et les murs en frottant : l'ultrason frontal ne voit pas ce qui le rase.",
+    "cycles_entre_balayages": 3,
+    "_balayage_aide": "Un balayage coute ~2 s (3 orientations de tete). On ne le fait donc pas a chaque cycle, sauf en cas d'obstacle ou il est immediat."
   },
   "blocage": {
     "tolerance_cm": 5,

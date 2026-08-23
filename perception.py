@@ -40,6 +40,28 @@ class Perception:
             time.sleep(0.03)
         return min(lues) if lues else None
 
+    def balayage(self, angles=None):
+        """Distances a gauche / devant / droite, en orientant la tete.
+
+        INDISPENSABLE : l'ultrason est un cone etroit vers l'avant. Il ne voit
+        RIEN sur les cotes — longer une porte ou un mur en frottant est son angle
+        mort exact. Une mesure frontale unique ne peut pas eviter ca.
+
+        Convention de la lib : yaw POSITIF = gauche (cf. preset_actions.head_down_left).
+        Retourne {"gauche": cm|None, "centre": ..., "droite": ...}.
+        """
+        angles = angles or self.o.get("balayage_angles_deg", [45, 0, -45])
+        noms = {angles[0]: "gauche", 0: "centre", angles[-1]: "droite"}
+        vue = {}
+        for a in angles:
+            self.dog.head_move([[a, 0, 0]], speed=90)
+            self.dog.wait_all_done()
+            time.sleep(0.12)                  # laisse l'echo se stabiliser
+            vue[noms.get(a, str(a))] = self.distance()
+        self.dog.head_move([[0, 0, 0]], speed=90)
+        self.dog.wait_all_done()
+        return vue
+
     # -- IMU -----------------------------------------------------------------
     def inclinaison(self):
         """(pitch, roll) en degres. Sert a detecter une chute ou un soulevement.
