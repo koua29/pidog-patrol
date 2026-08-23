@@ -41,26 +41,55 @@ class Perception:
         return min(lues) if lues else None
 
     def balayage(self, angles=None):
-        """Distances a gauche / devant / droite, en orientant la tete.
+        """Distances sur un arc de -90 a +90, en orientant la tete.
 
         INDISPENSABLE : l'ultrason est un cone etroit vers l'avant. Il ne voit
-        RIEN sur les cotes — longer une porte ou un mur en frottant est son angle
-        mort exact. Une mesure frontale unique ne peut pas eviter ca.
+        RIEN sur les cotes — longer une porte en frottant est son angle mort exact.
 
-        Convention de la lib : yaw POSITIF = gauche (cf. preset_actions.head_down_left).
-        Retourne {"gauche": cm|None, "centre": ..., "droite": ...}.
+        ⚠️ L'AMPLITUDE COMPTE AUTANT QUE LE PRINCIPE. Mesure du 23/08/2026, robot
+        coince contre une porte :
+
+            +90° = 42 cm   +45° = 10 cm   0° = 5 cm   -45° = 5 cm   -90° = 41 cm
+
+        La seule issue reelle etait a -90°. A -45° le capteur lisait 5 cm et le
+        robot se croyait bloque des deux cotes. Un balayage limite a +/-45°
+        (mon premier choix) rate donc les sorties. Idee reprise de
+        DrakeBG/PiDog-Left-Wall-Navigation, qui regarde a 90°.
+
+        Convention : yaw POSITIF = gauche (cf. preset_actions.head_down_left).
+
+        Retourne un dict avec, par cote :
+            "<cote>_libre" : la plus GRANDE distance du cote (potentiel de fuite)
+            "<cote>_pres"  : la plus PETITE distance du cote (risque de frottement)
+        plus "centre", et "brut" pour le detail angle par angle.
         """
-        angles = angles or self.o.get("balayage_angles_deg", [45, 0, -45])
-        noms = {angles[0]: "gauche", 0: "centre", angles[-1]: "droite"}
-        vue = {}
+        angles = angles or self.o.get("balayage_angles_deg", [90, 45, 0, -45, -90])
+        brut = {}
         for a in angles:
             self.dog.head_move([[a, 0, 0]], speed=90)
             self.dog.wait_all_done()
             time.sleep(0.12)                  # laisse l'echo se stabiliser
-            vue[noms.get(a, str(a))] = self.distance()
+            brut[a] = self.distance()
         self.dog.head_move([[0, 0, 0]], speed=90)
         self.dog.wait_all_done()
-        return vue
+
+        def agrege(cotes, plus_grand):
+            vals = [brut[a] for a in cotes if a in brut]
+            reels = [v for v in vals if v is not None]
+            if not reels:
+                return None            # aucun echo = espace libre
+            return max(reels) if plus_grand else min(reels)
+
+        gauche = [a for a in angles if a > 0]
+        droite = [a for a in angles if a < 0]
+        return {
+            "centre": brut.get(0),
+            "gauche_libre": agrege(gauche, True),
+            "gauche_pres": agrege(gauche, False),
+            "droite_libre": agrege(droite, True),
+            "droite_pres": agrege(droite, False),
+            "brut": brut,
+        }
 
     # -- IMU -----------------------------------------------------------------
     def inclinaison(self):

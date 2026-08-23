@@ -201,55 +201,59 @@ class Patrouille:
         recentes = self.distances[-n:]
         return (max(recentes) - min(recentes)) < b["tolerance_cm"]
 
+    @staticmethod
+    def _libre(vue, cote):
+        """Plus grande distance du cote : le potentiel de fuite. None = espace libre."""
+        return vue.get(f"{cote}_libre")
+
+    @staticmethod
+    def _pres(vue, cote):
+        """Plus petite distance du cote : le risque de frottement."""
+        return vue.get(f"{cote}_pres")
+
     def _cote_le_plus_libre(self, vue):
-        """Retourne 'gauche' ou 'droite' selon le cote le plus degage."""
-        g = vue.get("gauche")
-        dr = vue.get("droite")
-        if g is None and dr is None:
-            return "gauche"                      # aucun echo des deux cotes
+        g, d = self._libre(vue, "gauche"), self._libre(vue, "droite")
         if g is None:
-            return "gauche"                      # rien a gauche = espace libre
-        if dr is None:
+            return "gauche"          # aucun echo = rien en vue = espace
+        if d is None:
             return "droite"
-        return "gauche" if g >= dr else "droite"
+        return "gauche" if g >= d else "droite"
 
     def decider(self, dist, vue=None):
-        """Retourne ('avancer'|'gauche'|'droite'|'demi_tour', raison).
-
-        `vue` est le resultat d'un balayage lateral, quand il y en a eu un.
-        """
+        """Retourne ('avancer'|'gauche'|'droite'|'reculer'|'demi_tour', raison)."""
         o = self.cfg["obstacle"]
         b = self.cfg["blocage"]
         vue = vue or {}
 
         if dist is None:
-            # Aucun echo : le plus souvent rien dans la portee, donc voie DEGAGEE
-            # — surtout pas un demi-tour. Mais un mur absorbant ou un capteur qui
-            # lache donnent le meme silence : au bout de plusieurs cycles muets,
-            # on tourne par prudence.
             self.sans_echo += 1
             if self.sans_echo >= b.get("cycles_sans_echo", 6):
                 return "gauche", f"aucun echo depuis {self.sans_echo} cycles"
             return "avancer", "aucun echo (voie probablement degagee)"
         self.sans_echo = 0
 
-        # COLLE a l'obstacle : tourner sur place ne degage RIEN, le robot pivote
-        # le nez dans le mur. Constate en usage reel — 7 cycles a tourner avec
-        # 4 cm devant, a gauche ET a droite. La seule sortie est de reculer.
         seuil_recul = o.get("seuil_recul_cm", 15)
-        # Un cote est une vraie echappatoire s'il offre au moins le degagement
-        # normal (seuil_cm). Un cote a 20 cm n'en est pas une : le robot pivoterait
-        # dedans. `None` = aucun echo = espace libre, donc echappatoire valable.
+
+        # Une echappatoire = un cote offrant au moins le degagement normal.
+        # Un cote a 20 cm n'en est pas une : le robot pivoterait dedans.
         echappatoire = None
         if vue:
             for cote in ("gauche", "droite"):
-                if cote in vue and (vue[cote] is None or vue[cote] >= o["seuil_cm"]):
+                v = self._libre(vue, cote)
+                if v is None or v >= o["seuil_cm"]:
                     echappatoire = cote
                     break
+            if echappatoire and self._cote_le_plus_libre(vue) != echappatoire:
+                autre = self._cote_le_plus_libre(vue)
+                v = self._libre(vue, autre)
+                if v is None or v >= o["seuil_cm"]:
+                    echappatoire = autre      # prendre le PLUS degage des deux
+
         colle = dist < seuil_recul
         if vue and not colle:
-            cotes = [v for v in (vue.get("gauche"), vue.get("droite")) if v is not None]
-            colle = bool(cotes) and len(cotes) == 2 and max(cotes) < seuil_recul
+            cotes = [self._libre(vue, c) for c in ("gauche", "droite")]
+            reels = [v for v in cotes if v is not None]
+            colle = len(reels) == 2 and max(reels) < seuil_recul
         if colle and echappatoire is None:
             return "reculer", f"colle a l'obstacle ({dist:.0f} cm), aucune issue : je recule"
         if colle:
@@ -257,22 +261,21 @@ class Patrouille:
 
         if dist < o["seuil_cm"]:
             cote = self._cote_le_plus_libre(vue) if vue else "gauche"
-            detail = f" (gauche={vue.get('gauche')}, droite={vue.get('droite')})" if vue else ""
+            detail = (f" (g={self._libre(vue,'gauche')}, d={self._libre(vue,'droite')})"
+                      if vue else "")
             return cote, f"obstacle a {dist:.0f} cm{detail}"
 
-        # FROTTEMENT LATERAL : la voie est libre devant, mais quelque chose rase
-        # un flanc — une porte, un mur, un pied de meuble. L'ultrason frontal ne
-        # le verra jamais ; c'est le balayage qui l'attrape.
+        # FROTTEMENT LATERAL : voie libre devant, mais quelque chose rase un flanc.
+        # C'est la PLUS PETITE distance du cote qui compte ici, pas la plus grande.
         marge = o.get("marge_laterale_cm", 30)
         for cote, oppose in (("gauche", "droite"), ("droite", "gauche")):
-            d_cote = vue.get(cote)
-            if d_cote is not None and d_cote < marge:
-                return oppose, f"{cote} a {d_cote:.0f} cm (< {marge}), je m'ecarte"
+            p = self._pres(vue, cote)
+            if p is not None and p < marge:
+                return oppose, f"{cote} a {p:.0f} cm (< {marge}), je m'ecarte"
 
         if self.coince():
             return "demi_tour", "j'avance sans me rapprocher : coince"
 
-        # la vision ne peut que RENDRE PRUDENT, jamais autoriser un passage
         if self.cfg["vision"].get("influence_navigation"):
             avis = self.vision.avis() if self.vision else None
             if avis and not avis.get("voie_libre"):
@@ -298,8 +301,10 @@ class Patrouille:
             d.do_action('backward', step_count=o.get("recul_pas", 3),
                         speed=o.get("vitesse_marche", 98))
             d.wait_all_done()
-            # apres avoir recule, on pivote franchement pour changer de cap
-            d.do_action('turn_left', step_count=o["rotation_pas_max"],
+            # apres avoir recule, on pivote franchement vers le cote le plus degage
+            cote = self._cote_le_plus_libre(self.derniere_vue or {})
+            d.do_action('turn_right' if cote == "droite" else 'turn_left',
+                        step_count=o["rotation_pas_max"],
                         speed=o.get("vitesse_rotation", 98))
             d.wait_all_done()
             return
@@ -337,8 +342,10 @@ class Patrouille:
             d.head_move([[0, 0, 0]], speed=80)   # tete droite : faisceau vers l'avant
             d.wait_all_done()
             vue0 = self.p.balayage()
-            libre = [v for v in vue0.values() if v is None or v >= cfg["obstacle"]["seuil_recul_cm"]]
-            journal(f"   degagement au depart : {vue0}")
+            cles = ("centre", "gauche_libre", "droite_libre")
+            libre = [vue0.get(k) for k in cles
+                     if vue0.get(k) is None or vue0.get(k) >= cfg["obstacle"]["seuil_recul_cm"]]
+            journal(f"   degagement au depart : {vue0.get('brut')}")
             if not libre:
                 parler(cfg["voix"].get("coince_depart",
                                        "Je suis contre un obstacle, degagez-moi avant."), cfg)
@@ -381,11 +388,8 @@ class Patrouille:
                 self.distances.clear()        # rotation ou recul : compteur a zero
             vue_txt = ""
             if vue:
-                vue_txt = ("  [G " + " C ".join(
-                    f"{v:.0f}" if v is not None else "--"
-                    for v in (vue.get("gauche"), vue.get("centre"))) +
-                    f" D {vue.get('droite'):.0f}]" if vue.get("droite") is not None
-                    else "  [balayage]")
+                f = lambda v: f"{v:.0f}" if v is not None else "--"
+                vue_txt = (f"  [{'/'.join(f(vue['brut'][a]) for a in sorted(vue.get('brut', {}), reverse=True))}]")
             journal(f"[{cycle:03d}] {dist if dist is None else f'{dist:.0f} cm':>7} "
                     f"-> {action:<10} ({raison}){vue_txt}")
             self.agir(action)

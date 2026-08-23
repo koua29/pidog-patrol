@@ -261,6 +261,42 @@ en m'offrant un café — il suffit de scanner ce QR code PayPal. Merci beaucoup
   <img src="docs/paypal-qr.png" alt="QR code PayPal pour offrir un café" width="220" />
 </p>
 
+## Projets antérieurs
+
+Ce projet a d'abord été écrit sans regarder l'existant — une erreur. Voici ce que
+l'état de l'art apporte, et ce qui a été repris.
+
+**[DrakeBG/PiDog-Left-Wall-Navigation](https://github.com/DrakeBG/PiDog-Left-Wall-Navigation)**
+— 73 lignes, mais deux choix qui m'ont corrigé :
+il regarde à **90°**, pas 45°, et il marche à **vitesse 98**. Mon balayage initial à ±45°
+ratait les sorties latérales. Mesure sur robot coincé :
+
+```
++90° = 42 cm    +45° = 10 cm    0° = 5 cm    -45° = 5 cm    -90° = 41 cm
+```
+
+La seule issue était à −90°. À −45° le capteur lisait 5 cm et le robot se croyait bloqué
+des deux côtés. **L'amplitude comptait autant que le principe du balayage.**
+
+**[seven-lynx/HoundMind](https://github.com/seven-lynx/HoundMind)** — 27★, 14 000 lignes,
+le projet le plus abouti sur PiDog. Son module d'évitement d'obstacles est arrivé
+indépendamment aux mêmes conclusions que ce projet — balayage de l'espace libre, recul,
+détection de blocage — ce qui rassure sur la direction. Il va plus loin sur trois points
+qui ne sont **pas** repris ici :
+
+- un **vote de confirmation** avant d'agir sur un balayage, au lieu d'une mesure unique ;
+- des **stratégies de dégagement graduées** plutôt qu'un seul comportement de recul ;
+- un **délai anti-oscillation** après un virage, pour éviter le zigzag.
+
+Si vous cherchez une pile complète et mature, allez-y directement. `pidog-patrol` vise
+autre chose : rester lisible, en français, testable sans matériel, et se brancher sur
+[pidog-voice](https://github.com/koua29/pidog-voice).
+
+**[sunfounder/pidog](https://github.com/sunfounder/pidog)** — l'officiel. Son
+`examples/3_patrol.py` est une boucle « avance, si obstacle tourne » sans balayage
+latéral, sans recul et sans détection de blocage : c'est le point de départ que ce
+projet cherche à dépasser.
+
 ## La famille PiDog
 
 - **[pidog-voice](https://github.com/koua29/pidog-voice)** — commande vocale française

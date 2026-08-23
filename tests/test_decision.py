@@ -59,43 +59,59 @@ print("\n-- balayage lateral (le cas de la porte qu'on longe en frottant) --")
 
 p = neuve()
 verifie("voie libre devant mais mur a 15 cm a gauche",
-        p.decider(150, {"gauche": 15.0, "centre": 150.0, "droite": 200.0})[0], "droite")
+        p.decider(150, {"gauche_libre":150.0,"gauche_pres":15.0,"centre":150.0,"droite_libre":200.0,"droite_pres":200.0})[0], "droite")
 p = neuve()
 verifie("voie libre devant mais mur a 12 cm a droite",
-        p.decider(150, {"gauche": 200.0, "centre": 150.0, "droite": 12.0})[0], "gauche")
+        p.decider(150, {"gauche_libre":200.0,"gauche_pres":200.0,"centre":150.0,"droite_libre":150.0,"droite_pres":12.0})[0], "gauche")
 p = neuve()
 verifie("les deux cotes degages = on avance",
-        p.decider(150, {"gauche": 120.0, "centre": 150.0, "droite": 130.0})[0], "avancer")
+        p.decider(150, {"gauche_libre":120.0,"gauche_pres":120.0,"centre":150.0,"droite_libre":130.0,"droite_pres":130.0})[0], "avancer")
 p = neuve()
 verifie("obstacle devant : on tourne vers le cote le PLUS libre",
-        p.decider(25, {"gauche": 40.0, "centre": 25.0, "droite": 180.0})[0], "droite")
+        p.decider(25, {"gauche_libre":40.0,"gauche_pres":40.0,"centre":25.0,"droite_libre":180.0,"droite_pres":180.0})[0], "droite")
 p = neuve()
 verifie("obstacle devant : cote le plus libre a gauche",
-        p.decider(25, {"gauche": 190.0, "centre": 25.0, "droite": 35.0})[0], "gauche")
+        p.decider(25, {"gauche_libre":190.0,"gauche_pres":190.0,"centre":25.0,"droite_libre":35.0,"droite_pres":35.0})[0], "gauche")
 p = neuve()
 verifie("obstacle devant, aucun echo a droite = espace libre",
-        p.decider(25, {"gauche": 60.0, "centre": 25.0, "droite": None})[0], "droite")
+        p.decider(25, {"gauche_libre":60.0,"gauche_pres":60.0,"centre":25.0,"droite_libre":None,"droite_pres":None})[0], "droite")
 p = neuve()
 verifie("cote pile a la marge (30 cm) = on n'ecarte pas",
-        p.decider(150, {"gauche": 30.0, "centre": 150.0, "droite": 150.0})[0], "avancer")
+        p.decider(150, {"gauche_libre":150.0,"gauche_pres":30.0,"centre":150.0,"droite_libre":150.0,"droite_pres":150.0})[0], "avancer")
 
 print("\n-- recul (le cas du nez dans le mur) --")
 
 p = neuve()
 verifie("colle au mur devant (4 cm)",
-        p.decider(4, {"gauche": 5.5, "centre": 4.0, "droite": 3.7})[0], "reculer")
+        p.decider(4, {"gauche_libre":5.5,"gauche_pres":5.5,"centre":4.0,"droite_libre":3.7,"droite_pres":3.7})[0], "reculer")
 p = neuve()
 verifie("coince : tout est sous 15 cm",
-        p.decider(12, {"gauche": 10.0, "centre": 12.0, "droite": 8.0})[0], "reculer")
+        p.decider(12, {"gauche_libre":10.0,"gauche_pres":10.0,"centre":12.0,"droite_libre":8.0,"droite_pres":8.0})[0], "reculer")
 p = neuve()
 verifie("proche devant mais un cote degage = on tourne",
-        p.decider(12, {"gauche": 150.0, "centre": 12.0, "droite": 9.0})[0], "gauche")
+        p.decider(12, {"gauche_libre":150.0,"gauche_pres":150.0,"centre":12.0,"droite_libre":9.0,"droite_pres":9.0})[0], "gauche")
 p = neuve()
 verifie("obstacle a 25 cm = on tourne, pas de recul",
-        p.decider(25, {"gauche": 40.0, "centre": 25.0, "droite": 180.0})[0], "droite")
+        p.decider(25, {"gauche_libre":40.0,"gauche_pres":40.0,"centre":25.0,"droite_libre":180.0,"droite_pres":180.0})[0], "droite")
 p = neuve()
 verifie("sans balayage, colle devant = recul quand meme",
         p.decider(6, {})[0], "reculer")
+
+print("\n-- amplitude du balayage (l'issue n'existe qu'a 90 deg) --")
+
+# Cas reel mesure : +90=42, +45=10, 0=5, -45=5, -90=41. La seule issue est
+# laterale a 90 deg ; un balayage limite a +/-45 la raterait.
+p = neuve()
+reel = {"centre": 5.0,
+        "gauche_libre": 42.0, "gauche_pres": 10.0,
+        "droite_libre": 41.0, "droite_pres": 5.0,
+        "brut": {90: 42.0, 45: 10.0, 0: 5.0, -45: 5.0, -90: 41.0}}
+verifie("colle devant mais issue vue a 90 deg", p.decider(5, reel)[0], "gauche")
+
+p = neuve()
+etroit = {"centre": 5.0, "gauche_libre": 10.0, "gauche_pres": 10.0,
+          "droite_libre": 5.0, "droite_pres": 5.0, "brut": {45: 10.0, 0: 5.0, -45: 5.0}}
+verifie("meme scene vue a 45 deg seulement = recul", p.decider(5, etroit)[0], "reculer")
 
 print(f"\n=> {ok}/{total} tests passes")
 sys.exit(0 if ok == total else 1)

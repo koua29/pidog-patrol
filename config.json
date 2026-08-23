@@ -25,9 +25,11 @@
     "vitesse_rotation": 98,
     "_vitesse_aide": "MESURE le 23/08/2026 : vitesse 98 = 1,6 s/pas, vitesse 90 = 6,5 s/pas. Quatre fois plus lent pour 8 points de moins, verifie en ordre inverse pour exclure la fatigue de batterie. Ne descendez pas sous 95 sans raison.",
     "balayage_angles_deg": [
+      90,
       45,
       0,
-      -45
+      -45,
+      -90
     ],
     "marge_laterale_cm": 30,
     "_marge_laterale_aide": "Si un cote est plus proche que cette marge, le robot s'ecarte MEME si la voie devant est libre. Sans cela il longe les portes et les murs en frottant : l'ultrason frontal ne voit pas ce qui le rase.",
@@ -35,7 +37,8 @@
     "_balayage_aide": "Un balayage coute ~2 s (3 orientations de tete). On ne le fait donc pas a chaque cycle, sauf en cas d'obstacle ou il est immediat.",
     "seuil_recul_cm": 15,
     "_recul_aide": "Sous cette distance le robot est COLLE a l'obstacle : tourner sur place ne le degage pas, il pivote le nez dans le mur. Il doit RECULER d'abord. Constate en usage reel : 7 cycles a tourner avec 4 cm devant, gauche et droite.",
-    "recul_pas": 3
+    "recul_pas": 3,
+    "_balayage_angles_aide": "L'amplitude compte autant que le principe. Mesure robot coince : +90=42cm, +45=10cm, 0=5cm, -45=5cm, -90=41cm. La seule issue etait a -90 ; un balayage limite a +/-45 la ratait completement. Idee reprise de DrakeBG/PiDog-Left-Wall-Navigation."
   },
   "blocage": {
     "tolerance_cm": 5,
